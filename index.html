@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>計算機</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; overflow: hidden; background: #f0f0f0; }
+    #study-calc { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+    #calc-box { background: #333; padding: 20px; border-radius: 10px; width: 300px; }
+    #calc-display { width: 100%; height: 50px; background: #eee; text-align: right; font-size: 24px; border: none; margin-bottom: 10px; border-radius: 5px; padding: 10px; box-sizing: border-box; }
+    .calc-buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .btn { background: #666; color: white; border: none; padding: 20px; font-size: 18px; border-radius: 5px; cursor: pointer; }
+    .btn-op { background: #ff9500; }
+
+    #secret { display: none; width: 100vw; height: 100vh; background: #111; position: relative; }
+    #game-canvas { width: 100%; height: 100%; background: #000; }
+    #game-ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.6); padding: 12px; border-radius: 5px; pointer-events: none; }
+    #back-btn { position: absolute; top: 10px; right: 10px; padding: 8px 15px; cursor: pointer; background: #444; color: white; border: none; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <div id="study-calc">
+    <div id="calc-box">
+      <input type="text" id="calc-display" value="0" readonly>
+      <div class="calc-buttons">
+        <button class="btn" onclick="addNum('7')">7</button><button class="btn" onclick="addNum('8')">8</button><button class="btn" onclick="addNum('9')">9</button><button class="btn btn-op">÷</button>
+        <button class="btn" onclick="addNum('4')">4</button><button class="btn" onclick="addNum('5')">5</button><button class="btn" onclick="addNum('6')">6</button><button class="btn btn-op">×</button>
+        <button class="btn" onclick="addNum('1')">1</button><button class="btn" onclick="addNum('2')">2</button><button class="btn" onclick="addNum('3')">3</button><button class="btn btn-op" onclick="toSecret()">−</button> 
+        <button class="btn" onclick="location.reload()">C</button><button class="btn" onclick="addNum('0')">0</button><button class="btn">=</button><button class="btn btn-op">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="secret">
+    <button id="back-btn" onclick="location.reload()">電卓に戻る</button>
+    <div id="game-ui">
+      <b style="color: #ff9500;">🏠 3D家並み迷路</b><br>
+      移動: [W][A][S][D] or [矢印キー]<br>
+      目標: 黄色のゴールを探せ！
+    </div>
+    <canvas id="game-canvas"></canvas>
+  </div>
+
+  <script>
+    function addNum(n) { const d = document.getElementById('calc-display'); if(d.value==="0") d.value=n; else d.value+=n; }
+
+    function toSecret() {
+      document.getElementById('study-calc').style.display = 'none';
+      document.getElementById('secret').style.display = 'block';
+      startGame();
+    }
+
+    function startGame() {
+      const canvas = document.getElementById('game-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const map = [
+        [1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,1,0,0,0,2,1],
+        [1,0,1,0,1,0,1,1,0,1],
+        [1,0,1,0,0,0,0,1,0,1],
+        [1,0,1,1,1,1,0,1,0,1],
+        [1,0,0,0,0,0,0,1,0,1],
+        [1,1,1,1,1,0,1,1,0,1],
+        [1,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1]
+      ];
+
+      let player = { x: 1.5, y: 1.5, dir: 0 };
+      let keys = {};
+      window.onkeydown = (e) => keys[e.code] = true;
+      window.onkeyup = (e) => keys[e.code] = false;
+
+      function drawWallStrip(x, height, dist, hitType, rayX, rayY) {
+        let screenY = (canvas.height - height) / 2;
+        
+        // 基本の壁の色（家っぽく茶色）
+        let r = 139, g = 69, b = 19;
+        if (hitType === 2) { r = 255; g = 215; b = 0; } // ゴールは金色
+
+        // 影の処理（遠いほど暗く）
+        let shadow = Math.max(0.2, 1 - dist / 10);
+        
+        // 窓の模様を入れる（壁の特定の高さだけ色を変える）
+        ctx.fillStyle = `rgb(${r*shadow}, ${g*shadow}, ${b*shadow})`;
+        ctx.fillRect(x, screenY, (canvas.width/200)+1, height);
+
+        if (hitType === 1 && dist < 8) {
+            // 簡易的な窓の描画（高さの中央付近）
+            ctx.fillStyle = `rgba(135, 206, 235, ${shadow})`; // 水色の窓
+            ctx.fillRect(x, screenY + height*0.3, (canvas.width/200)+1, height*0.2);
+            // 玄関ドアの描画
+            ctx.fillStyle = `rgba(50, 20, 0, ${shadow})`;
+            ctx.fillRect(x, screenY + height*0.7, (canvas.width/200)+1, height*0.3);
+        }
+      }
+
+      function render() {
+        const moveSpeed = 0.06;
+        const rotSpeed = 0.04;
+        if(keys['ArrowLeft'] || keys['KeyA']) player.dir -= rotSpeed;
+        if(keys['ArrowRight'] || keys['KeyD']) player.dir += rotSpeed;
+        
+        let dx = Math.cos(player.dir) * moveSpeed;
+        let dy = Math.sin(player.dir) * moveSpeed;
+        if(keys['KeyW']) {
+          if(map[Math.floor(player.y)][Math.floor(player.x + dx)] !== 1) player.x += dx;
+          if(map[Math.floor(player.y + dy)][Math.floor(player.x)] !== 1) player.y += dy;
+        }
+        if(keys['KeyS']) {
+          if(map[Math.floor(player.y)][Math.floor(player.x - dx)] !== 1) player.x -= dx;
+          if(map[Math.floor(player.y - dy)][Math.floor(player.x)] !== 1) player.y -= dy;
+        }
+
+        // 背景（空と地面）
+        ctx.fillStyle = "#222"; ctx.fillRect(0, 0, canvas.width, canvas.height); // 暗い空
+        ctx.fillStyle = "#333"; ctx.fillRect(0, canvas.height/2, canvas.width, canvas.height/2); // 地面
+
+        const numRays = 200; // 線の本数を少し減らして軽量化
+        for(let i=0; i<numRays; i++) {
+          let rayAngle = (player.dir - 0.5) + (i / numRays);
+          let rx = player.x, ry = player.y;
+          let rdx = Math.cos(rayAngle) * 0.02, rdy = Math.sin(rayAngle) * 0.02;
+          let dist = 0, hit = 0;
+
+          while(dist < 12) {
+            rx += rdx; ry += rdy; dist += 0.02;
+            if(map[Math.floor(ry)][Math.floor(rx)] > 0) {
+              hit = map[Math.floor(ry)][Math.floor(rx)];
+              break;
+            }
+          }
+
+          let h = canvas.height / (dist * Math.cos(rayAngle - player.dir));
+          drawWallStrip(i * (canvas.width/numRays), h, dist, hit, rx, ry);
+        }
+        
+        if(map[Math.floor(player.y)][Math.floor(player.x)] === 2) {
+          alert("ゴール！おめでとう！");
+          location.reload();
+        }
+        requestAnimationFrame(render);
+      }
+      render();
+    }
+  </script>
+</body>
+</html>
