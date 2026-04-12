@@ -2,9 +2,9 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>究極・計算機 (暗闇鬼ごっこ版)</title>
+  <title>究極・計算機 (1P移動修正・HPシステム版)</title>
   <style>
-    body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+    body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: sans-serif; }
     /* 電卓 */
     #study-calc { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #f0f0f0; }
     #calc-box { background: #333; padding: 20px; border-radius: 10px; width: 300px; }
@@ -24,6 +24,13 @@
     .ui-layer { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 5px; z-index: 10; font-size: 12px; }
     .back-btn { position: absolute; top: 10px; right: 10px; padding: 10px 15px; background: #ff4444; color: white; border: none; cursor: pointer; border-radius: 5px; z-index: 100; }
     
+    /* HPバー */
+    .hp-hud { position: absolute; top: 15px; width: 100%; display: flex; justify-content: space-around; pointer-events: none; z-index: 110; }
+    .hp-container { width: 150px; background: #333; border: 2px solid #fff; height: 12px; border-radius: 6px; overflow: hidden; }
+    .hp-bar { height: 100%; width: 100%; transition: width 0.2s; }
+    #p1-hp-fill { background: #f00; }
+    #p2-hp-fill { background: #0ff; }
+
     /* スキルHUD */
     .skill-hud { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-around; pointer-events: none; }
     .skill-label { background: rgba(0,0,0,0.7); padding: 8px 15px; border: 2px solid; border-radius: 10px; font-weight: bold; font-family: monospace; }
@@ -54,8 +61,12 @@
   </div>
 
   <div id="maze-screen" class="game-screen">
+    <div class="hp-hud">
+      <div><div style="color:red; font-size:10px; text-align:center;">1P HP</div><div class="hp-container"><div id="p1-hp-fill" class="hp-bar"></div></div></div>
+      <div><div style="color:cyan; font-size:10px; text-align:center;">2P HP</div><div class="hp-container"><div id="p2-hp-fill" class="hp-bar"></div></div></div>
+    </div>
     <button class="back-btn" onclick="showMenu()">EXIT</button>
-    <div class="ui-layer">1P(鬼): WASD | [F]:加速<br>2P(逃): 矢印 | [M]:TP<br>※鬼が近づくと右画面の端が赤くなる！</div>
+    <div class="ui-layer">1P(鬼): WASD | [F]:加速<br>2P(逃): 矢印 | [M]:TP<br>※鬼が近づくと右画面が赤くなる！</div>
     <canvas id="maze-canvas"></canvas>
     
     <div class="skill-hud">
@@ -64,15 +75,14 @@
     </div>
   </div>
 
-  <!-- CPS/AIM画面 -->
   <div id="cps-screen" class="game-screen"><button class="back-btn" onclick="showMenu()">EXIT</button><div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh;"><h2 id="cps-timer" style="color:#fff;">10.0s</h2><div style="width:200px; height:200px; border:4px dashed #0f0; border-radius:50%; color:#0f0; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="doCPS()">CLICK!</div><h1 id="cps-count" style="color:#0f0; font-size:40px;">0</h1><h2 id="cps-val" style="color:#0f0; font-size:20px;">CPS: 0.0</h2></div></div>
   <div id="aim-screen" class="game-screen"><button class="back-btn" onclick="showMenu()">EXIT</button><div id="aim-area" style="width:100%; height:100%;"><h2 id="aim-timer" style="color:#fff; position:absolute; top:50px; width:100%; text-align:center;">30.0s</h2><h1 id="aim-count" style="color:#f44; position:absolute; top:80px; width:100%; text-align:center;">HITS: 0</h1><button id="aim-start-btn" onclick="runAIM()" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:15px 30px; background:#0f0; border:none; border-radius:5px; font-weight:bold;">START</button></div></div>
 
   <script>
     let mazeTimer, cpsInterval, aimInterval, keys = {};
     const TILE_SIZE = 60, GRID = 51;
-    let p1 = { x: 1.5, y: 1.5, speed: 0.15, boost: 0, cd: 0 };
-    let p2 = { x: GRID-2.5, y: GRID-2.5, cd: 0 };
+    let p1 = { x: 1.5, y: 1.5, speed: 0.15, boost: 0, cd: 0, hp: 100, stun: 0 };
+    let p2 = { x: GRID-2.5, y: GRID-2.5, cd: 0, hp: 100, buff: 0 };
     let globalMap = [];
 
     function addNum(n) { const d = document.getElementById('calc-display'); if(d.value==="0") d.value=n; else d.value+=n; }
@@ -102,14 +112,15 @@
       cvs.width = window.innerWidth; cvs.height = window.innerHeight;
       document.getElementById('maze-screen').style.display = 'block';
       globalMap = createMaze();
-      p1 = { x: 1.5, y: 1.5, speed: 0.15, boost: 0, cd: 0 };
-      p2 = { x: GRID-2.5, y: GRID-2.5, cd: 0 };
+      p1 = { x: 1.5, y: 1.5, speed: 0.15, boost: 0, cd: 0, hp: 100, stun: 0 };
+      p2 = { x: GRID-2.5, y: GRID-2.5, cd: 0, hp: 100, buff: 0 };
+      updateHPDisplay();
       window.onkeydown = (e) => { keys[e.code] = true; if(e.code === 'KeyF') triggerBoost(); if(e.code === 'KeyM') triggerTP(); };
       window.onkeyup = (e) => keys[e.code] = false;
       loop();
     }
 
-    function triggerBoost() { if(p1.cd <= 0) { p1.boost = 300; p1.cd = 1200; } }
+    function triggerBoost() { if(p1.cd <= 0 && p1.stun <= 0) { p1.boost = 300; p1.cd = 1200; } }
     function triggerTP() {
       if(p2.cd > 0) return;
       let found = false;
@@ -124,6 +135,7 @@
 
     function canMove(nx, ny) {
       const r = 0.25;
+      if(nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) return false;
       if(globalMap[Math.floor(ny-r)][Math.floor(nx-r)] === 1) return false;
       if(globalMap[Math.floor(ny+r)][Math.floor(nx-r)] === 1) return false;
       if(globalMap[Math.floor(ny-r)][Math.floor(nx+r)] === 1) return false;
@@ -131,32 +143,51 @@
       return true;
     }
 
+    function updateHPDisplay() {
+      document.getElementById('p1-hp-fill').style.width = Math.max(0, p1.hp) + "%";
+      document.getElementById('p2-hp-fill').style.width = Math.max(0, p2.hp) + "%";
+    }
+
     function loop() {
-      let s1 = p1.boost > 0 ? p1.speed * 1.6 : p1.speed;
-      if(p1.boost > 0) p1.boost--; if(p1.cd > 0) p1.cd--; if(p2.cd > 0) p2.cd--;
-
-      if(keys['KeyW']) { if(canMove(p1.x, p1.y-s1)) p1.y-=s1; }
-      if(keys['KeyS']) { if(canMove(p1.x, p1.y+s1)) p1.y+=s1; }
-      if(keys['KeyA']) { if(canMove(p1.x-s1, p1.y)) p1.x-=s1; }
-      if(keys['KeyD']) { if(canMove(p1.x+s1, p1.y)) p1.x+=s1; }
+      // 1P 鬼の移動修正: [KeyD]を +s1 に修正
+      if (p1.stun <= 0) {
+        let s1 = p1.boost > 0 ? p1.speed * 1.6 : p1.speed;
+        if(keys['KeyW'] && canMove(p1.x, p1.y-s1)) p1.y-=s1;
+        if(keys['KeyS'] && canMove(p1.x, p1.y+s1)) p1.y+=s1;
+        if(keys['KeyA'] && canMove(p1.x-s1, p1.y)) p1.x-=s1;
+        if(keys['KeyD'] && canMove(p1.x+s1, p1.y)) p1.x+=s1;
+      } else { p1.stun--; }
       
-      if(keys['ArrowUp']) { if(canMove(p2.x, p2.y-0.15)) p2.y-=0.15; }
-      if(keys['ArrowDown']) { if(canMove(p2.x, p2.y+0.15)) p2.y+=0.15; }
-      if(keys['ArrowLeft']) { if(canMove(p2.x-0.15, p2.y)) p2.x-=0.15; }
-      if(keys['ArrowRight']) { if(canMove(p2.x+0.15, p2.y)) p2.x+=0.15; }
+      let s2 = p2.buff > 0 ? 0.25 : 0.15;
+      if(keys['ArrowUp'] && canMove(p2.x, p2.y-s2)) p2.y-=s2;
+      if(keys['ArrowDown'] && canMove(p2.x, p2.y+s2)) p2.y+=s2;
+      if(keys['ArrowLeft'] && canMove(p2.x-s2, p2.y)) p2.x-=s2;
+      if(keys['ArrowRight'] && canMove(p2.x+s2, p2.y)) p2.x+=s2;
 
+      if(p1.boost > 0) p1.boost--; 
+      if(p1.cd > 0) p1.cd--; 
+      if(p2.cd > 0) p2.cd--;
+      if(p2.buff > 0) p2.buff--;
+
+      // 当たり判定
       let dist = Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
-      if(dist < 0.5) { alert("鬼の勝利！捕まえました。"); location.reload(); return; }
+      if(dist < 0.5 && p1.stun <= 0) {
+        p2.hp -= 25;
+        p1.stun = 300; 
+        p2.buff = 300; 
+        updateHPDisplay();
+        if(p2.hp <= 0) { alert("鬼の勝利！ターゲットを撃破しました。"); location.reload(); return; }
+      }
 
-      document.getElementById('skill1').innerText = p1.boost > 0 ? `BOOST: ${(p1.boost/60).toFixed(1)}s` : (p1.cd > 0 ? `WAIT: ${(p1.cd/60).toFixed(0)}s` : "1P [F] BOOST: READY");
-      document.getElementById('skill2').innerText = p2.cd > 0 ? `WAIT: ${(p2.cd/60).toFixed(0)}s` : "2P [M] TP: READY";
+      document.getElementById('skill1').innerText = p1.stun > 0 ? `STUN: ${(p1.stun/60).toFixed(1)}s` : (p1.boost > 0 ? `BOOST: ${(p1.boost/60).toFixed(1)}s` : (p1.cd > 0 ? `WAIT: ${(p1.cd/60).toFixed(0)}s` : "1P [F] BOOST: READY"));
+      document.getElementById('skill2').innerText = p2.buff > 0 ? `SPEED UP: ${(p2.buff/60).toFixed(1)}s` : (p2.cd > 0 ? `WAIT: ${(p2.cd/60).toFixed(0)}s` : "2P [M] TP: READY");
 
       const cvs = document.getElementById('maze-canvas');
       const ctx = cvs.getContext('2d');
       ctx.fillStyle = "#000"; ctx.fillRect(0,0,cvs.width,cvs.height);
 
       draw(ctx, p1, 0, cvs.width/2); 
-      draw(ctx, p2, cvs.width/2, cvs.width/2, true, dist); // 2P側だけ接近警告を渡す
+      draw(ctx, p2, cvs.width/2, cvs.width/2, true, dist); 
 
       ctx.fillStyle = "#0f0"; ctx.fillRect(cvs.width/2-2, 0, 4, cvs.height);
       mazeTimer = requestAnimationFrame(loop);
@@ -166,7 +197,6 @@
       ctx.save();
       ctx.beginPath(); ctx.rect(offX, 0, w, window.innerHeight); ctx.clip();
       
-      // 接近警告エフェクト（逃げ側のみ）
       if(isEscape && distToOni < 10) {
         let intensity = (1 - distToOni/10) * 0.5;
         ctx.fillStyle = `rgba(255, 0, 0, ${intensity})`;
@@ -182,7 +212,6 @@
 
       for(let y=startY; y<endY; y++) for(let x=startX; x<endX; x++) {
         if(globalMap[y][x]===1) {
-          // 視界制限（自分の中心からの距離で暗くする）
           let d = Math.sqrt((x+0.5-focus.x)**2 + (y+0.5-focus.y)**2);
           let opacity = Math.max(0, 1 - d/6);
           if(opacity > 0) {
@@ -192,16 +221,21 @@
         }
       }
       
-      // プレイヤー描画（近くの時だけ見える）
       let dToOther = Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
       let pOpacity = Math.max(0, 1 - dToOther/8);
 
+      ctx.save();
       if(p1.boost > 0) { ctx.shadowBlur = 20; ctx.shadowColor = "red"; }
       ctx.globalAlpha = (focus === p1) ? 1 : pOpacity;
-      ctx.fillStyle="red"; ctx.beginPath(); ctx.arc(p1.x*TILE_SIZE, p1.y*TILE_SIZE, 15, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = (p1.stun > 0 && Math.floor(Date.now()/100)%2) ? "white" : "red";
+      ctx.beginPath(); ctx.arc(p1.x*TILE_SIZE, p1.y*TILE_SIZE, 15, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
       
+      ctx.save();
       ctx.globalAlpha = (focus === p2) ? 1 : pOpacity;
-      ctx.fillStyle="cyan"; ctx.beginPath(); ctx.arc(p2.x*TILE_SIZE, p2.y*TILE_SIZE, 15, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = (p2.buff > 0 && Math.floor(Date.now()/100)%2) ? "white" : "cyan";
+      ctx.beginPath(); ctx.arc(p2.x*TILE_SIZE, p2.y*TILE_SIZE, 15, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
       
       ctx.restore();
     }
