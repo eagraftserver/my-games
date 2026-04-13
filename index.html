@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>究極・計算機 (1P移動修正・HPシステム版)</title>
+  <title>究極・計算機 (鬼限定トラップ＆演出強化版)</title>
   <style>
     body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: sans-serif; }
     /* 電卓 */
@@ -21,17 +21,23 @@
     /* ゲーム画面 */
     .game-screen { display: none; width: 100vw; height: 100vh; position: relative; }
     #maze-canvas { display: block; background: #000; }
-    .ui-layer { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 5px; z-index: 10; font-size: 12px; }
     .back-btn { position: absolute; top: 10px; right: 10px; padding: 10px 15px; background: #ff4444; color: white; border: none; cursor: pointer; border-radius: 5px; z-index: 100; }
     
-    /* HPバー */
-    .hp-hud { position: absolute; top: 15px; width: 100%; display: flex; justify-content: space-around; pointer-events: none; z-index: 110; }
+    /* タイマー */
+    #game-timer { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); font-size: 32px; color: #fff; font-weight: bold; text-shadow: 0 0 10px #0f0; z-index: 120; }
+
+    /* ルーレット演出用 */
+    #roulette-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: none; z-index: 200; background: #000; flex-direction: row; }
+    .roulette-side { width: 50%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; border: 1px solid #333; }
+    .role-name { font-size: 60px; margin-top: 20px; }
+
+    /* HUD */
+    .hp-hud { position: absolute; top: 50px; width: 100%; display: flex; justify-content: space-around; pointer-events: none; z-index: 110; }
     .hp-container { width: 150px; background: #333; border: 2px solid #fff; height: 12px; border-radius: 6px; overflow: hidden; }
     .hp-bar { height: 100%; width: 100%; transition: width 0.2s; }
     #p1-hp-fill { background: #f00; }
     #p2-hp-fill { background: #0ff; }
 
-    /* スキルHUD */
     .skill-hud { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: space-around; pointer-events: none; }
     .skill-label { background: rgba(0,0,0,0.7); padding: 8px 15px; border: 2px solid; border-radius: 10px; font-weight: bold; font-family: monospace; }
   </style>
@@ -53,52 +59,52 @@
   <div id="secret-menu">
     <div class="menu-box">
       <h1 style="color:#0f0;">DARK ABILITY TAG</h1>
-      <button class="menu-btn" onclick="startMaze()">🏠 暗闇鬼ごっこを開始</button>
+      <button class="menu-btn" onclick="startMaze()">🏠 鬼ごっこを開始</button>
       <button class="menu-btn" onclick="startCPS()">🖱️ CPSテスト</button>
       <button class="menu-btn" onclick="startAIM()">🎯 AIMテスト</button>
-      <p style="color:#666; cursor:pointer;" onclick="location.reload()">◀ 電卓に戻る</p>
+      <p style="color:#666; cursor:pointer;" onclick="location.reload()">◀ 戻る</p>
     </div>
   </div>
 
   <div id="maze-screen" class="game-screen">
+    <div id="game-timer">03:00</div>
+    <div id="roulette-overlay">
+      <div id="roulette-left" class="roulette-side"><span style="color:red; font-size:24px;">1P(赤)</span><div class="role-name">???</div></div>
+      <div id="roulette-right" class="roulette-side"><span style="color:cyan; font-size:24px;">2P(水色)</span><div class="role-name">???</div></div>
+    </div>
+
     <div class="hp-hud">
-      <div><div style="color:red; font-size:10px; text-align:center;">1P HP</div><div class="hp-container"><div id="p1-hp-fill" class="hp-bar"></div></div></div>
-      <div><div style="color:cyan; font-size:10px; text-align:center;">2P HP</div><div class="hp-container"><div id="p2-hp-fill" class="hp-bar"></div></div></div>
+      <div><div id="p1-hp-label" style="color:red; font-size:10px; text-align:center;">1P HP</div><div class="hp-container"><div id="p1-hp-fill" class="hp-bar"></div></div></div>
+      <div><div id="p2-hp-label" style="color:cyan; font-size:10px; text-align:center;">2P HP</div><div class="hp-container"><div id="p2-hp-fill" class="hp-bar"></div></div></div>
     </div>
     <button class="back-btn" onclick="showMenu()">EXIT</button>
-    <div class="ui-layer">1P(鬼): WASD | [F]:加速<br>2P(逃): 矢印 | [M]:TP<br>※鬼が近づくと右画面が赤くなる！</div>
     <canvas id="maze-canvas"></canvas>
-    
     <div class="skill-hud">
-      <div id="skill1" class="skill-label" style="border-color: red; color: red;">1P [F] BOOST: READY</div>
-      <div id="skill2" class="skill-label" style="border-color: cyan; color: cyan;">2P [M] TP: READY</div>
+      <div id="skill1" class="skill-label" style="border-color: red; color: red;">1P [F]: WAIT</div>
+      <div id="skill2" class="skill-label" style="border-color: cyan; color: cyan;">2P [M]: WAIT</div>
     </div>
   </div>
 
-  <div id="cps-screen" class="game-screen"><button class="back-btn" onclick="showMenu()">EXIT</button><div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh;"><h2 id="cps-timer" style="color:#fff;">10.0s</h2><div style="width:200px; height:200px; border:4px dashed #0f0; border-radius:50%; color:#0f0; display:flex; align-items:center; justify-content:center; cursor:pointer;" onclick="doCPS()">CLICK!</div><h1 id="cps-count" style="color:#0f0; font-size:40px;">0</h1><h2 id="cps-val" style="color:#0f0; font-size:20px;">CPS: 0.0</h2></div></div>
-  <div id="aim-screen" class="game-screen"><button class="back-btn" onclick="showMenu()">EXIT</button><div id="aim-area" style="width:100%; height:100%;"><h2 id="aim-timer" style="color:#fff; position:absolute; top:50px; width:100%; text-align:center;">30.0s</h2><h1 id="aim-count" style="color:#f44; position:absolute; top:80px; width:100%; text-align:center;">HITS: 0</h1><button id="aim-start-btn" onclick="runAIM()" style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); padding:15px 30px; background:#0f0; border:none; border-radius:5px; font-weight:bold;">START</button></div></div>
-
   <script>
-    let mazeTimer, cpsInterval, aimInterval, keys = {};
+    let mazeTimer, keys = {};
     const TILE_SIZE = 60, GRID = 51;
-    let p1 = { x: 1.5, y: 1.5, speed: 0.15, boost: 0, cd: 0, hp: 100, stun: 0 };
-    let p2 = { x: GRID-2.5, y: GRID-2.5, cd: 0, hp: 100, buff: 0 };
-    let globalMap = [];
+    let p1 = { x: 1.5, y: 1.5, speed: 0.15, boost: 0, cd: 0, hp: 100, stun: 0, role: "", color: "red", itemTime: 0, trapCount: 5 };
+    let p2 = { x: GRID-2.5, y: GRID-2.5, speed: 0.15, boost: 0, cd: 0, hp: 100, stun: 0, role: "", color: "cyan", itemTime: 0, trapCount: 5 };
+    let globalMap = [], items = [], traps = [], flash = 0;
+    let timeLeft = 180;
 
     function addNum(n) { const d = document.getElementById('calc-display'); if(d.value==="0") d.value=n; else d.value+=n; }
     function showMenu() { allHide(); document.getElementById('secret-menu').style.display='flex'; }
     function allHide() {
       document.querySelectorAll('.game-screen, #study-calc, #secret-menu').forEach(s => s.style.display = 'none');
       if(mazeTimer) cancelAnimationFrame(mazeTimer);
-      if(cpsInterval) clearInterval(cpsInterval);
-      if(aimInterval) clearInterval(aimInterval);
     }
 
     function createMaze() {
       let m = Array.from({length: GRID}, (_, y) => Array.from({length: GRID}, (_, x) => (x===0||x===GRID-1||y===0||y===GRID-1) ? 1 : 0));
       for(let y=2; y<GRID-2; y+=2) for(let x=2; x<GRID-2; x+=2) m[y][x] = 1;
       for(let y=2; y<GRID-2; y+=2) for(let x=2; x<GRID-2; x+=2) {
-        let dirs = [[0,-1], [0,1], [-1,0], [1,0]];
+        let dirs = [[0,-1],[0,1],[-1,0],[1,0]];
         let [dx, dy] = dirs[Math.floor(Math.random()*4)];
         m[y+dy][x+dx] = 1;
       }
@@ -110,149 +116,186 @@
       allHide();
       const cvs = document.getElementById('maze-canvas');
       cvs.width = window.innerWidth; cvs.height = window.innerHeight;
-      document.getElementById('maze-screen').style.display = 'block';
       globalMap = createMaze();
-      p1 = { x: 1.5, y: 1.5, speed: 0.15, boost: 0, cd: 0, hp: 100, stun: 0 };
-      p2 = { x: GRID-2.5, y: GRID-2.5, cd: 0, hp: 100, buff: 0 };
-      updateHPDisplay();
-      window.onkeydown = (e) => { keys[e.code] = true; if(e.code === 'KeyF') triggerBoost(); if(e.code === 'KeyM') triggerTP(); };
+      spawnItems(5);
+      traps = []; timeLeft = 180;
+      
+      document.getElementById('maze-screen').style.display = 'block';
+      const overlay = document.getElementById('roulette-overlay');
+      const rtL = document.querySelector('#roulette-left .role-name');
+      const rtR = document.querySelector('#roulette-right .role-name');
+      overlay.style.display = 'flex';
+      
+      let count = 0;
+      let itv = setInterval(() => {
+        rtL.innerText = count % 2 === 0 ? "鬼" : "逃";
+        rtR.innerText = count % 2 === 0 ? "逃" : "鬼";
+        count++;
+        if(count > 20) {
+          clearInterval(itv);
+          const p1Oni = Math.random() < 0.5;
+          p1.role = p1Oni ? "鬼" : "逃げ";
+          p2.role = p1Oni ? "逃げ" : "鬼";
+          // 決定された役割を表示
+          rtL.innerText = p1.role;
+          rtR.innerText = p2.role;
+          // 鬼の色を強調
+          rtL.style.color = p1.role === "鬼" ? "#ff4444" : "#fff";
+          rtR.style.color = p2.role === "鬼" ? "#ff4444" : "#fff";
+          
+          setTimeout(() => {
+            overlay.style.display = 'none';
+            initGame();
+          }, 2000);
+        }
+      }, 80);
+    }
+
+    function spawnItems(n) {
+      items = [];
+      for(let i=0; i<n; i++) {
+        let ix, iy;
+        do { ix = Math.floor(Math.random()*(GRID-2))+1; iy = Math.floor(Math.random()*(GRID-2))+1; }
+        while(globalMap[iy][ix] === 1);
+        items.push({x: ix+0.5, y: iy+0.5});
+      }
+    }
+
+    function initGame() {
+      p1.x = 1.5; p1.y = 1.5; p1.hp = 100; p1.stun = 0; p1.cd = 0; p1.trapCount = 5;
+      p2.x = GRID-2.5; p2.y = GRID-2.5; p2.hp = 100; p2.stun = 0; p2.cd = 0; p2.trapCount = 5;
+      window.onkeydown = (e) => {
+        keys[e.code] = true;
+        if(e.code === 'KeyF') p1.role === "鬼" ? triggerBoost(p1) : triggerTP(p1);
+        if(e.code === 'KeyM') p2.role === "鬼" ? triggerBoost(p2) : triggerTP(p2);
+        // トラップ設置：鬼のときだけ実行
+        if(e.code === 'KeyG' && p1.role === "鬼") placeTrap(p1);
+        if(e.code === 'KeyN' && p2.role === "鬼") placeTrap(p2); 
+      };
       window.onkeyup = (e) => keys[e.code] = false;
+      gameTimerLoop();
       loop();
     }
 
-    function triggerBoost() { if(p1.cd <= 0 && p1.stun <= 0) { p1.boost = 300; p1.cd = 1200; } }
-    function triggerTP() {
-      if(p2.cd > 0) return;
-      let found = false;
-      while(!found) {
-        let tx = Math.floor(Math.random() * (GRID-2)) + 1.5;
-        let ty = Math.floor(Math.random() * (GRID-2)) + 1.5;
-        let dist = Math.sqrt((tx-p1.x)**2 + (ty-p1.y)**2);
-        if(dist > 15 && globalMap[Math.floor(ty)][Math.floor(tx)] === 0) { p2.x = tx; p2.y = ty; found = true; }
+    function gameTimerLoop() {
+      if (timeLeft <= 0) { alert("タイムアップ！逃げの勝利！"); location.reload(); return; }
+      timeLeft--;
+      let m = Math.floor(timeLeft/60), s = timeLeft%60;
+      document.getElementById('game-timer').innerText = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      if(document.getElementById('maze-screen').style.display === 'block') setTimeout(gameTimerLoop, 1000);
+    }
+
+    function placeTrap(p) {
+      if(p.trapCount > 0 && p.stun <= 0) {
+        traps.push({x: Math.floor(p.x)+0.5, y: Math.floor(p.y)+0.5});
+        p.trapCount--;
       }
-      p2.cd = 2400; 
+    }
+
+    function triggerBoost(p) { if(p.cd <= 0 && p.stun <= 0) { p.boost = 240; p.cd = 900; } }
+    function triggerTP(p) {
+      if(p.cd > 0 || p.stun > 0) return;
+      let tx, ty;
+      do { tx = Math.floor(Math.random()*(GRID-2))+1.5; ty = Math.floor(Math.random()*(GRID-2))+1.5; } 
+      while(globalMap[Math.floor(ty)][Math.floor(tx)]===1);
+      p.x = tx; p.y = ty; p.cd = 1800;
     }
 
     function canMove(nx, ny) {
       const r = 0.25;
       if(nx < 0 || nx >= GRID || ny < 0 || ny >= GRID) return false;
-      if(globalMap[Math.floor(ny-r)][Math.floor(nx-r)] === 1) return false;
-      if(globalMap[Math.floor(ny+r)][Math.floor(nx-r)] === 1) return false;
-      if(globalMap[Math.floor(ny-r)][Math.floor(nx+r)] === 1) return false;
-      if(globalMap[Math.floor(ny+r)][Math.floor(nx+r)] === 1) return false;
-      return true;
-    }
-
-    function updateHPDisplay() {
-      document.getElementById('p1-hp-fill').style.width = Math.max(0, p1.hp) + "%";
-      document.getElementById('p2-hp-fill').style.width = Math.max(0, p2.hp) + "%";
+      return !(globalMap[Math.floor(ny-r)][Math.floor(nx-r)] === 1 || globalMap[Math.floor(ny+r)][Math.floor(nx-r)] === 1 ||
+               globalMap[Math.floor(ny-r)][Math.floor(nx+r)] === 1 || globalMap[Math.floor(ny+r)][Math.floor(nx+r)] === 1);
     }
 
     function loop() {
-      // 1P 鬼の移動修正: [KeyD]を +s1 に修正
-      if (p1.stun <= 0) {
-        let s1 = p1.boost > 0 ? p1.speed * 1.6 : p1.speed;
-        if(keys['KeyW'] && canMove(p1.x, p1.y-s1)) p1.y-=s1;
-        if(keys['KeyS'] && canMove(p1.x, p1.y+s1)) p1.y+=s1;
-        if(keys['KeyA'] && canMove(p1.x-s1, p1.y)) p1.x-=s1;
-        if(keys['KeyD'] && canMove(p1.x+s1, p1.y)) p1.x+=s1;
-      } else { p1.stun--; }
-      
-      let s2 = p2.buff > 0 ? 0.25 : 0.15;
-      if(keys['ArrowUp'] && canMove(p2.x, p2.y-s2)) p2.y-=s2;
-      if(keys['ArrowDown'] && canMove(p2.x, p2.y+s2)) p2.y+=s2;
-      if(keys['ArrowLeft'] && canMove(p2.x-s2, p2.y)) p2.x-=s2;
-      if(keys['ArrowRight'] && canMove(p2.x+s2, p2.y)) p2.x+=s2;
+      [p1, p2].forEach((p, idx) => {
+        let s = (p.role === "鬼" && p.boost > 0) ? 0.25 : 0.15;
+        if(p.role === "逃げ" && p.hp <= 25) s += 0.03;
+        if(p.itemTime > 0) s += 0.05;
+        
+        if(p.stun <= 0) {
+          let k = idx === 0 ? ['KeyW','KeyS','KeyA','KeyD'] : ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+          if(keys[k[0]] && canMove(p.x, p.y-s)) p.y-=s;
+          if(keys[k[1]] && canMove(p.x, p.y+s)) p.y+=s;
+          if(keys[k[2]] && canMove(p.x-s, p.y)) p.x-=s;
+          if(keys[k[3]] && canMove(p.x+s, p.y)) p.x+=s;
+          
+          items = items.filter(it => {
+            if(Math.hypot(p.x-it.x, p.y-it.y) < 0.6) { p.itemTime = 300; return false; }
+            return true;
+          });
 
-      if(p1.boost > 0) p1.boost--; 
-      if(p1.cd > 0) p1.cd--; 
-      if(p2.cd > 0) p2.cd--;
-      if(p2.buff > 0) p2.buff--;
+          if(p.role === "逃げ") {
+            traps = traps.filter(t => {
+              if(Math.hypot(p.x-t.x, p.y-t.y) < 0.5) { p.stun = 180; return false; }
+              return true;
+            });
+          }
+        } else p.stun--;
+        if(p.boost > 0) p.boost--; if(p.cd > 0) p.cd--; if(p.itemTime > 0) p.itemTime--;
+      });
 
-      // 当たり判定
-      let dist = Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
-      if(dist < 0.5 && p1.stun <= 0) {
-        p2.hp -= 25;
-        p1.stun = 300; 
-        p2.buff = 300; 
-        updateHPDisplay();
-        if(p2.hp <= 0) { alert("鬼の勝利！ターゲットを撃破しました。"); location.reload(); return; }
+      let oni = p1.role === "鬼" ? p1 : p2;
+      let esc = p1.role === "逃げ" ? p1 : p2;
+      let d = Math.hypot(p1.x-p2.x, p1.y-p2.y);
+      if(d < 0.5 && oni.stun <= 0) {
+        esc.hp -= 25; oni.stun = 180; flash = 10;
+        document.getElementById('p1-hp-fill').style.width = p1.hp + "%";
+        document.getElementById('p2-hp-fill').style.width = p2.hp + "%";
+        if(esc.hp <= 0) { alert("鬼の勝利！"); location.reload(); return; }
       }
 
-      document.getElementById('skill1').innerText = p1.stun > 0 ? `STUN: ${(p1.stun/60).toFixed(1)}s` : (p1.boost > 0 ? `BOOST: ${(p1.boost/60).toFixed(1)}s` : (p1.cd > 0 ? `WAIT: ${(p1.cd/60).toFixed(0)}s` : "1P [F] BOOST: READY"));
-      document.getElementById('skill2').innerText = p2.buff > 0 ? `SPEED UP: ${(p2.buff/60).toFixed(1)}s` : (p2.cd > 0 ? `WAIT: ${(p2.cd/60).toFixed(0)}s` : "2P [M] TP: READY");
+      document.getElementById('skill1').innerText = `1P [F]:${p1.cd>0?'WAIT':(p1.role==='鬼'?'BOOST':'TP')} ${p1.role==='鬼'?'[G]:TRAP('+p1.trapCount+')':''}`;
+      document.getElementById('skill2').innerText = `2P [M]:${p2.cd>0?'WAIT':(p2.role==='鬼'?'BOOST':'TP')} ${p2.role==='鬼'?'[N]:TRAP('+p2.trapCount+')':''}`;
 
-      const cvs = document.getElementById('maze-canvas');
-      const ctx = cvs.getContext('2d');
+      const cvs = document.getElementById('maze-canvas'), ctx = cvs.getContext('2d');
       ctx.fillStyle = "#000"; ctx.fillRect(0,0,cvs.width,cvs.height);
-
-      draw(ctx, p1, 0, cvs.width/2); 
-      draw(ctx, p2, cvs.width/2, cvs.width/2, true, dist); 
-
-      ctx.fillStyle = "#0f0"; ctx.fillRect(cvs.width/2-2, 0, 4, cvs.height);
+      drawSide(ctx, p1, 0, cvs.width/2, p1.role==="逃げ", d);
+      drawSide(ctx, p2, cvs.width/2, cvs.width/2, p2.role==="逃げ", d);
+      if(flash > 0) { ctx.fillStyle=`rgba(255,255,255,${flash/10})`; ctx.fillRect(0,0,cvs.width,cvs.height); flash--; }
       mazeTimer = requestAnimationFrame(loop);
     }
 
-    function draw(ctx, focus, offX, w, isEscape = false, distToOni = 999) {
-      ctx.save();
-      ctx.beginPath(); ctx.rect(offX, 0, w, window.innerHeight); ctx.clip();
-      
-      if(isEscape && distToOni < 10) {
-        let intensity = (1 - distToOni/10) * 0.5;
-        ctx.fillStyle = `rgba(255, 0, 0, ${intensity})`;
-        ctx.fillRect(offX, 0, w, window.innerHeight);
-      }
-
+    function drawSide(ctx, focus, offX, w, isEsc, dOni) {
+      ctx.save(); ctx.beginPath(); ctx.rect(offX, 0, w, window.innerHeight); ctx.clip();
+      if(isEsc && dOni < 8) { ctx.fillStyle = `rgba(255,0,0,${(1-dOni/8)*0.4})`; ctx.fillRect(offX,0,w,window.innerHeight); }
       ctx.translate(offX + w/2 - focus.x*TILE_SIZE, window.innerHeight/2 - focus.y*TILE_SIZE);
       
-      const startX = Math.max(0, Math.floor(focus.x - 8));
-      const endX = Math.min(GRID, Math.floor(focus.x + 8));
-      const startY = Math.max(0, Math.floor(focus.y - 8));
-      const endY = Math.min(GRID, Math.floor(focus.y + 8));
-
-      for(let y=startY; y<endY; y++) for(let x=startX; x<endX; x++) {
-        if(globalMap[y][x]===1) {
-          let d = Math.sqrt((x+0.5-focus.x)**2 + (y+0.5-focus.y)**2);
-          let opacity = Math.max(0, 1 - d/6);
-          if(opacity > 0) {
-            ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-            ctx.fillRect(x*TILE_SIZE+1, y*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2);
-          }
-        }
+      for(let y=0; y<GRID; y++) for(let x=0; x<GRID; x++) if(globalMap[y][x]===1) {
+        ctx.fillStyle = `rgba(255,255,255,${Math.max(0,1-Math.hypot(x+0.5-focus.x,y+0.5-focus.y)/6)})`;
+        ctx.fillRect(x*TILE_SIZE+1, y*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2);
       }
+      items.forEach(it => { ctx.fillStyle="yellow"; ctx.font="24px serif"; ctx.fillText("★", it.x*TILE_SIZE-12, it.y*TILE_SIZE+8); });
+      traps.forEach(t => { 
+        ctx.strokeStyle="#f00"; ctx.lineWidth=2; ctx.strokeRect(t.x*TILE_SIZE-15, t.y*TILE_SIZE-15, 30, 30);
+        ctx.beginPath(); ctx.moveTo(t.x*TILE_SIZE-15, t.y*TILE_SIZE); ctx.lineTo(t.x*TILE_SIZE+15, t.y*TILE_SIZE); ctx.stroke();
+      });
       
-      let dToOther = Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
-      let pOpacity = Math.max(0, 1 - dToOther/8);
-
-      ctx.save();
-      if(p1.boost > 0) { ctx.shadowBlur = 20; ctx.shadowColor = "red"; }
-      ctx.globalAlpha = (focus === p1) ? 1 : pOpacity;
-      ctx.fillStyle = (p1.stun > 0 && Math.floor(Date.now()/100)%2) ? "white" : "red";
-      ctx.beginPath(); ctx.arc(p1.x*TILE_SIZE, p1.y*TILE_SIZE, 15, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-      
-      ctx.save();
-      ctx.globalAlpha = (focus === p2) ? 1 : pOpacity;
-      ctx.fillStyle = (p2.buff > 0 && Math.floor(Date.now()/100)%2) ? "white" : "cyan";
-      ctx.beginPath(); ctx.arc(p2.x*TILE_SIZE, p2.y*TILE_SIZE, 15, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-      
+      if(!isEsc) {
+        const target = (focus === p1) ? p2 : p1;
+        const angle = Math.atan2(target.y - focus.y, target.x - focus.x);
+        ctx.save(); ctx.translate(focus.x*TILE_SIZE, focus.y*TILE_SIZE); ctx.rotate(angle);
+        ctx.fillStyle="rgba(255,0,0,0.7)"; ctx.beginPath(); ctx.moveTo(40,0); ctx.lineTo(25,-10); ctx.lineTo(25,10); ctx.fill(); ctx.restore();
+      }
+      drawPlayer(ctx, p1, "red"); drawPlayer(ctx, p2, "cyan");
       ctx.restore();
     }
 
-    let cpsCount=0, cpsTime=10, cpsActive=false;
-    function startCPS() { allHide(); document.getElementById('cps-screen').style.display='block'; resetCPS(); }
-    function resetCPS() { cpsCount=0; cpsTime=10; cpsActive=false; document.getElementById('cps-count').innerText="0"; document.getElementById('cps-val').innerText="CPS: 0.0"; document.getElementById('cps-timer').innerText="TIME: 10.0s"; }
-    function doCPS() {
-      if(cpsTime<=0) return;
-      if(!cpsActive) { cpsActive=true; cpsInterval=setInterval(()=>{ cpsTime-=0.1; document.getElementById('cps-timer').innerText=`TIME: ${Math.max(0,cpsTime).toFixed(1)}s`; document.getElementById('cps-val').innerText=`CPS: ${(cpsCount/(10-cpsTime)).toFixed(1)}`; if(cpsTime<=0){clearInterval(cpsInterval);alert("SCORE:"+cpsCount);}},100); }
-      cpsCount++; document.getElementById('cps-count').innerText=cpsCount;
+    function drawPlayer(ctx, p, col) {
+      if(p.stun > 0) {
+        ctx.strokeStyle = p.role === "逃げ" ? "#ff00ff" : "yellow";
+        ctx.lineWidth = 4; ctx.beginPath();
+        for(let i=0; i<10; i++){ let a=Math.random()*6.2, r=20+Math.random()*15; ctx.lineTo(p.x*TILE_SIZE+Math.cos(a)*r, p.y*TILE_SIZE+Math.sin(a)*r); }
+        ctx.stroke();
+        ctx.fillStyle="#fff"; ctx.font="bold 16px sans-serif"; ctx.fillText(p.role==="逃げ"?"TRAPPED!":"REST", p.x*TILE_SIZE-35, p.y*TILE_SIZE-30);
+      }
+      ctx.fillStyle = (p.stun > 0 && Math.floor(Date.now()/100)%2) ? "white" : col;
+      ctx.beginPath(); ctx.arc(p.x*TILE_SIZE, p.y*TILE_SIZE, 15, 0, 7); ctx.fill();
     }
-    let aimHits=0, aimTime=30, aimActive=false;
-    function startAIM() { allHide(); document.getElementById('aim-screen').style.display='block'; resetAIM(); }
-    function resetAIM() { aimHits=0; aimTime=30; aimActive=false; document.getElementById('aim-count').innerText="HITS: 0"; document.getElementById('aim-timer').innerText="30.0s"; document.getElementById('aim-start-btn').style.display='block'; document.querySelectorAll('.aim-target').forEach(t=>t.remove()); }
-    function runAIM() { aimActive=true; document.getElementById('aim-start-btn').style.display='none'; spawn(); aimInterval=setInterval(()=>{ aimTime-=0.1; document.getElementById('aim-timer').innerText=`TIME: ${Math.max(0,aimTime).toFixed(1)}s`; if(aimTime<=0){aimActive=false;clearInterval(aimInterval);alert("HITS:"+aimHits);resetAIM();}},100); }
-    function spawn() { if(!aimActive)return; document.querySelectorAll('.aim-target').forEach(t=>t.remove()); const t=document.createElement('div'); t.className='aim-target'; t.style.position='absolute'; t.style.width='50px'; t.style.height='50px'; t.style.borderRadius='50%'; t.style.background='radial-gradient(circle, #f00 30%, #fff 31%, #fff 60%, #f00 61%)'; t.style.top=(Math.random()*60+20)+"%"; t.style.left=(Math.random()*80+10)+"%"; t.onclick=()=>{aimHits++;document.getElementById('aim-count').innerText=`HITS:${aimHits}`;spawn();}; document.getElementById('aim-screen').appendChild(t); }
+
+    function startCPS() { allHide(); alert("CPSテストは現在迷路に注力するため休止中です"); showMenu(); }
+    function startAIM() { allHide(); alert("AIMテストは現在迷路に注力するため休止中です"); showMenu(); }
   </script>
 </body>
 </html>
